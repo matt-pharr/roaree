@@ -258,7 +258,8 @@ async def verify(ctx):
     "@cumc.columbia.edu",
     "@ldeo.columbia.edu",
     "@gsb.columbia.edu",
-    "@cs.columbia.edu"]
+    "@cs.columbia.edu",
+    "@caa.columbia.edu"]
     print("email = " + email_msg)
     if re.findall(r'@[\w\.-]+', email_msg)[0].lower() in emails:
         email = email_msg
