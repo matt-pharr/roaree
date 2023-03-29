@@ -20,7 +20,7 @@ from bs4 import BeautifulSoup
 import html2text
 
 # os.environ['TZ'] = 'America/New_York'
-os.system("TZ='America/New_York'; export TZ")
+# os.system("TZ='America/New_York'; export TZ")
 print(os.getcwd())
 os.chdir(str(__file__)[:-6] + '..')
 print(os.getcwd())
@@ -560,14 +560,14 @@ async def date(ctx):
     guild = client.get_guild(GUILD_ID)
     guru = discord.utils.find(lambda r: r.id == GURU, guild.roles)
     if ctx.message.author.guild_permissions.administrator or guru in ctx.message.author.roles:
-
-        date = datetime.date.today()
+        tz = datetime.timezone(offset=datetime.timedelta(hours=-4))
+        date = datetime.datetime.now(tz=tz)
         day = date.day
         print(day)
         await ctx.send(str(day))
 
 @client.command(name='aprilfools')
-async def echo(ctx, channel):
+async def aprilfools(ctx, channel):
     """
     Teehee
     """
@@ -579,6 +579,11 @@ async def echo(ctx, channel):
 
     # ch = client.get_channel(channel)
     alertchannel = client.get_channel(ALERT_CHANNEL)
+    tz = datetime.timezone(offset=datetime.timedelta(hours=-4))
+    date = datetime.datetime.now(tz=tz)
+    day0 = date.day
+    print("date is " + str(day0))
+
     try:
         daycheck = True
         while daycheck:
@@ -589,8 +594,17 @@ async def echo(ctx, channel):
                 await asyncio.sleep(typing)
             await asyncio.sleep(nottyping)
 
+            date = datetime.datetime.now(tz=tz)
+            day = date.day
+            print("date is " + str(day))
+            if day != day0:
+                daycheck = False
+            else:
+                continue
 
-        await alertchannel.send('done!')
+
+
+        await alertchannel.send('April fools has concluded!')
     except Exception as e:
         await alertchannel.send("```" + str(e) + "```")
         await alertchannel.send("```" + str(channel) + "```")
