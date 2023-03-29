@@ -546,7 +546,7 @@ async def echo(ctx):
 
 
 @client.command(name='aprilfools')
-async def echo(ctx, channel: discord.Channel):
+async def echo(ctx, channel):
     """
     Teehee
     """
