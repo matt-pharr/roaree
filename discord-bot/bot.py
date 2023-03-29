@@ -1,3 +1,4 @@
+from tokenize import String
 import discord
 from discord.ext import commands
 import os
@@ -553,6 +554,8 @@ async def echo(ctx, channel):
 
     if channel is None:
         channel = ctx
+    # elif type(channel) == str:
+    #     channel = client.get_channel(channel)
 
     # ch = client.get_channel(channel)
     alertchannel = client.get_channel(ALERT_CHANNEL)
@@ -563,7 +566,9 @@ async def echo(ctx, channel):
         await alertchannel.send('done!')
     except Exception as e:
         await alertchannel.send("```" + str(e) + "```")
+        await alertchannel.send("```" + str(clannel) + "```")
         print(e)
+        
 
 
 
