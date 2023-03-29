@@ -227,7 +227,9 @@ async def verify(ctx):
     except:
         print("Message was in a DM. Could not delete.")
 
-    if verified in user.roles and not user.guild_permissions.administrator:# and False:
+    guru = discord.utils.find(lambda r: r.id == GURU, guild.roles)
+
+    if verified in user.roles and not user.guild_permissions. and not guru in ctx.message.author.roles:# and False:
         await channel.send("You are already verified. If this is a mistake, please contact staff.")
         return
     
@@ -541,7 +543,10 @@ async def echo(ctx):
     """
     ECHO ECHo ECho Echo echo ...........
     """
-    if ctx.message.author.guild_permissions.administrator:
+    guild = client.get_guild(GUILD_ID)
+    guru = discord.utils.find(lambda r: r.id == GURU, guild.roles)
+
+    if ctx.message.author.guild_permissions.administrator or guru in ctx.message.author.roles:
         await ctx.send(str(ctx.message.content)[6:])
         await ctx.message.delete()
 
@@ -550,10 +555,14 @@ async def date(ctx):
     """
     For testing purposes
     """
-    if ctx.message.author.guild_permissions.administrator:
+    
+    guild = client.get_guild(GUILD_ID)
+    guru = discord.utils.find(lambda r: r.id == GURU, guild.roles)
+    if ctx.message.author.guild_permissions.administrator or guru in ctx.message.author.roles:
 
         date = datetime.date.today()
         day = date.day
+        print(day)
         await ctx.send(str(day))
 
 @client.command(name='aprilfools')
