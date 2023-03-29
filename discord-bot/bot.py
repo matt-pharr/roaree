@@ -10,7 +10,7 @@ import random
 import datetime
 # from locallib import directorysearch
 import re
-import time
+import datetime
 import smtplib
 import typing
 from email.mime.text import MIMEText
@@ -545,6 +545,16 @@ async def echo(ctx):
         await ctx.send(str(ctx.message.content)[6:])
         await ctx.message.delete()
 
+@client.command(name='date')
+async def echo(ctx):
+    """
+    For testing purposes
+    """
+    if ctx.message.author.guild_permissions.administrator:
+
+        date = datetime.date.today()
+        day = date.day
+        await ctx.send(str(day))
 
 @client.command(name='aprilfools')
 async def echo(ctx, channel):
@@ -560,9 +570,16 @@ async def echo(ctx, channel):
     # ch = client.get_channel(channel)
     alertchannel = client.get_channel(ALERT_CHANNEL)
     try:
-        async with channel.typing():
-            # do expensive stuff here
-            await asyncio.sleep(10)
+        daycheck = True
+        while daycheck:
+            typing = random.random()*10
+            nottyping = random.random()*10
+            async with channel.typing():
+                # do expensive stuff here
+                await asyncio.sleep(typing)
+            await asyncio.sleep(nottyping)
+
+
         await alertchannel.send('done!')
     except Exception as e:
         await alertchannel.send("```" + str(e) + "```")
