@@ -588,7 +588,7 @@ async def aprilfools(ctx, channel):
         daycheck = True
         while daycheck:
             typing = random.random()*10
-            nottyping = random.random()*10
+            nottyping = random.random()*30
             async with channel.typing():
                 # do expensive stuff here
                 await asyncio.sleep(typing)
