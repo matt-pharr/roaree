@@ -545,6 +545,27 @@ async def echo(ctx):
         await ctx.message.delete()
 
 
+@client.command(name='aprilfools')
+async def echo(ctx, channel: discord.Channel):
+    """
+    Teehee
+    """
+
+    if channel is None:
+        channel = ctx
+
+    # ch = client.get_channel(channel)
+    alertchannel = client.get_channel(ALERT_CHANNEL)
+    try:
+        async with channel.typing():
+            # do expensive stuff here
+            await asyncio.sleep(10)
+        await alertchannel.send('done!')
+    except:
+        print('failed')
+
+
+
 
 
 
