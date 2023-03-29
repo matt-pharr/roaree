@@ -546,7 +546,7 @@ async def echo(ctx):
         await ctx.message.delete()
 
 @client.command(name='date')
-async def echo(ctx):
+async def date(ctx):
     """
     For testing purposes
     """
