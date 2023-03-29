@@ -229,7 +229,7 @@ async def verify(ctx):
 
     guru = discord.utils.find(lambda r: r.id == GURU, guild.roles)
 
-    if verified in user.roles and not user.guild_permissions. and not guru in ctx.message.author.roles:# and False:
+    if verified in user.roles and not user.guild_permissions.administrator and not guru in ctx.message.author.roles:# and False:
         await channel.send("You are already verified. If this is a mistake, please contact staff.")
         return
     
