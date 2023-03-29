@@ -566,7 +566,7 @@ async def echo(ctx, channel):
         await alertchannel.send('done!')
     except Exception as e:
         await alertchannel.send("```" + str(e) + "```")
-        await alertchannel.send("```" + str(clannel) + "```")
+        await alertchannel.send("```" + str(channel) + "```")
         print(e)
         
 
