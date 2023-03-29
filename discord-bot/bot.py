@@ -562,7 +562,8 @@ async def echo(ctx, channel):
             await asyncio.sleep(10)
         await alertchannel.send('done!')
     except Exception as e:
-        print('failed')
+        await alertchannel.send("```" + str(e) + "```")
+        print(e)
 
 
 
