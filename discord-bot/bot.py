@@ -19,7 +19,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 import html2text
 
-
+os.environ['TZ'] = 'America/New_York'
 print(os.getcwd())
 os.chdir(str(__file__)[:-6] + '..')
 print(os.getcwd())
