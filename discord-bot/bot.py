@@ -554,8 +554,8 @@ async def echo(ctx, channel):
 
     if channel is None:
         channel = ctx
-    # elif type(channel) == str:
-    #     channel = client.get_channel(channel)
+    elif type(channel) == str:
+        channel = client.get_channel(int(channel.strip('<#').strip('>')))
 
     # ch = client.get_channel(channel)
     alertchannel = client.get_channel(ALERT_CHANNEL)
