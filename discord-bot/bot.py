@@ -606,7 +606,7 @@ async def aprilfools(ctx, channel, day0=datetime.datetime.now(tz=datetime.timezo
             await ctx.message.guild.me.edit(nick=name)
 
             typing = random.random()*10
-            nottyping = random.random()*10
+            nottyping = random.random()*10+5
             async with channel.typing():
                 # do expensive stuff here
                 await asyncio.sleep(typing)
