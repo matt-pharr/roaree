@@ -603,7 +603,7 @@ async def aprilfools(ctx, channel, day0=datetime.datetime.now(tz=datetime.timezo
         while daycheck:
 
             name = random.choice(memenames)
-            ctx.message.server.me.edit(nick=name)
+            await ctx.message.guild.me.edit(nick=name)
 
             typing = random.random()*10
             nottyping = random.random()*30
