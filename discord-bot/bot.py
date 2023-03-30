@@ -596,9 +596,10 @@ async def aprilfools(ctx, channel, day0=datetime.datetime.now(tz=datetime.timezo
     # date = datetime.datetime.now(tz=tz)
     # day0 = date.day
     print("date is " + str(day0))
-
+    tz = datetime.timezone(offset=datetime.timedelta(hours=-4))
     try:
         daycheck = True
+        dayseen = False
         while daycheck:
 
             name = random.choice(memenames)
@@ -614,9 +615,15 @@ async def aprilfools(ctx, channel, day0=datetime.datetime.now(tz=datetime.timezo
             date = datetime.datetime.now(tz=tz)
             day = date.day
             print("date is " + str(day))
-            if day != day0:
-                daycheck = False
+            
+            if dayseen:
+                if day != day0:
+                    daycheck = False
+                else:
+                    continue
             else:
+                if day == day0:
+                    dayseen = True
                 continue
 
 
