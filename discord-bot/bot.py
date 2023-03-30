@@ -567,10 +567,23 @@ async def date(ctx):
         await ctx.send(str(day))
 
 @client.command(name='aprilfools')
-async def aprilfools(ctx, channel):
+async def aprilfools(ctx, channel, day0=datetime.datetime.now(tz=datetime.timezone(offset=datetime.timedelta(hours=-4))).day):
     """
     Teehee
     """
+
+    memenames = ["NiccoDubs",
+                 "Delta Leader",
+                 "Skorpyin",
+                 "Drax",
+                 "gdg",
+                 "jtao",
+                 "lucas",
+                 "Blappo",
+                 "vengeance",
+                 "kekyoin"]
+    
+
 
     if channel is None:
         channel = ctx
@@ -579,14 +592,18 @@ async def aprilfools(ctx, channel):
 
     # ch = client.get_channel(channel)
     alertchannel = client.get_channel(ALERT_CHANNEL)
-    tz = datetime.timezone(offset=datetime.timedelta(hours=-4))
-    date = datetime.datetime.now(tz=tz)
-    day0 = date.day
+    # tz = datetime.timezone(offset=datetime.timedelta(hours=-4))
+    # date = datetime.datetime.now(tz=tz)
+    # day0 = date.day
     print("date is " + str(day0))
 
     try:
         daycheck = True
         while daycheck:
+
+            name = random.choice(memenames)
+            ctx.message.server.me.edit(nick=name)
+
             typing = random.random()*10
             nottyping = random.random()*30
             async with channel.typing():
