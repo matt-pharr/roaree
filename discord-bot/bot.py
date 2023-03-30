@@ -572,14 +572,14 @@ async def aprilfools(ctx, channel, day0=datetime.datetime.now(tz=datetime.timezo
     Teehee
     """
 
-    memenames = ["NiccoDubs",
-                 "Delta Leader",
-                 "Skorpyin",
-                 "Drax",
-                 "gdg",
-                 "jtao",
-                 "lucas",
-                 "Blappo",
+    memenames = ["NiccoDubs (bad at counting)",
+                 "patrick | seas | physics '22",
+                 "David",
+                 'Eric "Drax"',
+                 "Gift",
+                 "Jeff | MSCS '22 CompE '16",
+                 "lucas | MS BME",
+                 "Blappo (2?)",
                  "vengeance",
                  "kekyoin"]
     
