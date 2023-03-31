@@ -581,7 +581,14 @@ async def aprilfools(ctx, channel, day0=datetime.datetime.now(tz=datetime.timezo
                  "lucas | MS BME",
                  "Blappo (2?)",
                  "vengeance",
-                 "kekyoin"]
+                 "kekyoin",
+                 "Dawson | CC'23",
+                 "Raghav | MS CE",
+                 "Carl | SEAS'26",
+                 "DaDukki",
+                 "Dam258",
+                 "TheOneLlama",
+                 ]
     
 
 
