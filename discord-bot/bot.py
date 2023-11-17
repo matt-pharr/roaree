@@ -297,7 +297,7 @@ async def verify(ctx):
     #     await channel.send(name + ' is not a student. Your role is ' + role + '.')
     #     return
 
-    await channel.send("Sending verification email to " + email + ".\n\nPlease type in the recieved six-digit verification code.")
+    await channel.send("Sending verification email to " + email + ".\n\nPlease type in the recieved six-digit verification code. If you do not recieve an email, please check your spam filter before contacting staff.")
     
     ## Generates a code and email content:
 
