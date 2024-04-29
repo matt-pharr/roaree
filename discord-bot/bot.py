@@ -217,7 +217,7 @@ async def verify(ctx):
 
     guild = client.get_guild(GUILD_ID)
     roleids = [870233517156597800, 871156035845509121, 871152677835386900, 871172200881848361]
-    rolerem = [870555161007902781]
+    rolerem = [870555161007902781,1124826215337955328]
     verified = discord.utils.find(lambda r: r.id == 870233517156597800, guild.roles)
     roles_to_add = [discord.utils.find(lambda r: r.id == roleid, guild.roles) for roleid in roleids]
     roles_to_remove = [discord.utils.find(lambda r: r.id == roleid, guild.roles) for roleid in rolerem]
