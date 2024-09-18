@@ -188,6 +188,28 @@ async def on_message(message):
 #     """
 #     await ctx.message.channel.send('https://github.com/rshin7/roaree')
 
+
+@client.command(name='banemail')
+async def banemail(ctx, email):
+    """
+    Bans a user by email.
+    """
+
+    # Check if user is admin
+    guild = client.get_guild(GUILD_ID)
+    guru = discord.utils.find(lambda r: r.id == GURU, guild.roles)
+
+    if not (ctx.message.author.guild_permissions.administrator or guru in ctx.message.author.roles):
+        return
+
+    with open("bans.txt", "a") as f:
+        f.write(email + '\n')
+
+    verifchannel = client.get_channel(VERIF_CHANNEL)
+    await verifchannel.send(f'{email} banned by {ctx.message.author}')
+    print(f'{email} banned by {ctx.message.author}')
+
+
 @client.command(name='unverify')
 async def unverify(ctx):
     f"""
@@ -273,11 +295,22 @@ async def verify(ctx):
         return
     elif email_msg[0] == prefix:
         print(str(user) + ' quit verification')
+        await channel.send('Verification cancelled.')
         return
     else:
         print(str(user) + ' inputted invalid id')
         await channel.send(f'An error ocurred. Please type {prefix}verify to try again.')
         return
+
+    verifchannel = client.get_channel(VERIF_CHANNEL)
+
+    with open("bans.txt", "r") as f:
+        bans = f.readlines()
+        for ban in bans:
+            if email in ban:
+                await channel.send("You have been banned from the server. If you think this is a mistake, please contact staff.")
+                verifchannel.send(f'{ctx.message.author} attempted to verify but their email {email} is banned.')
+                return
 
     ## Searches the directory and checks whether the given RCS id is a student:
 
@@ -365,8 +398,7 @@ async def verify(ctx):
             await user.remove_roles(role)
         await channel.send("Thank you for verifying your student status. Your identity will never be shared with the University or the public. You now have access to the server.")
 
-        newchannel = client.get_channel(VERIF_CHANNEL)
-        await newchannel.send(str(email) + " = <@" + str(user.id) + "> (" + str(user.id) + ")")
+        await verifchannel.send(str(email) + " = <@" + str(user.id) + "> (" + str(user.id) + ")")
         print(f'user {str(user)} verified as {email}.')
     
     return
