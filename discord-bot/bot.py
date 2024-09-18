@@ -207,6 +207,7 @@ async def banemail(ctx, email):
 
     verifchannel = client.get_channel(VERIF_CHANNEL)
     await verifchannel.send(f'{email} banned by {ctx.message.author}')
+    await ctx.send(f'{email} banned by {ctx.message.author}')
     print(f'{email} banned by {ctx.message.author}')
 
 @client.command(name='unbanemail')
@@ -228,6 +229,11 @@ async def unbanemail(ctx, email):
         for ban in bans:
             if email not in ban:
                 f.write(ban + '\n')
+            else:
+                print(f'{email} unbanned by {ctx.message.author}')
+                verifchannel = client.get_channel(VERIF_CHANNEL)
+                await verifchannel.send(f'{email} unbanned by {ctx.message.author}')
+                await ctx.send(f'{email} unbanned by {ctx.message.author}')
 
 @client.command(name='unverify')
 async def unverify(ctx):
