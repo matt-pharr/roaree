@@ -242,6 +242,49 @@ async def unbanemail(ctx, email):
                 await verifchannel.send(f'{email} unbanned by {ctx.message.author}')
                 await ctx.send(f'{email} unbanned by {ctx.message.author}')
 
+@client.command(name='bans')
+async def bans(ctx):
+    """
+    Lists all banned emails.
+    """
+
+    # Check if user is admin
+    guild = client.get_guild(GUILD_ID)
+    guru = discord.utils.find(lambda r: r.id == GURU, guild.roles)
+
+    if not (ctx.message.author.guild_permissions.administrator or guru in ctx.message.author.roles):
+        return
+
+    with open("bans.txt", "r") as f:
+        bans = f.readlines()
+        if len(bans) == 0:
+            await ctx.send("No banned emails.")
+        else:
+            await ctx.send("Banned emails:")
+            for ban in bans:
+                await ctx.send(ban)
+
+@client.command(name='isbanned')
+async def isbanned(ctx, email):
+    """
+    Checks if an email is banned.
+    """
+
+    # Check if user is admin
+    guild = client.get_guild(GUILD_ID)
+    guru = discord.utils.find(lambda r: r.id == GURU, guild.roles)
+
+    if not (ctx.message.author.guild_permissions.administrator or guru in ctx.message.author.roles):
+        return
+    
+    with open("bans.txt", "r") as f:
+        bans = f.readlines()
+        for ban in bans:
+            if email in ban:
+                await ctx.send(f'{email} is banned.')
+                return
+        await ctx.send(f'{email} is not banned.')
+
 @client.command(name='unverify')
 async def unverify(ctx):
     f"""
