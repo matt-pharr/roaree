@@ -202,6 +202,13 @@ async def banemail(ctx, email):
     if not (ctx.message.author.guild_permissions.administrator or guru in ctx.message.author.roles):
         return
 
+    with open("bans.txt", "r") as f:
+        bans = f.readlines()
+        for ban in bans:
+            if email in ban:
+                await ctx.send(f'{email} is already banned.')
+                return
+
     with open("bans.txt", "a") as f:
         f.write(email + '\n')
 
