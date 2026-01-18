@@ -27,7 +27,7 @@ print(os.getcwd())
 
 # scoredict = {}
 load_dotenv()
-intents = discord.Intents.default()
+intents = discord.Intents.all()
 intents.typing = False
 intents.presences = False
 intents.guilds = True
