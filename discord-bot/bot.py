@@ -45,6 +45,7 @@ ALERT_CHANNEL = int(os.getenv('ALERT_CHANNEL'))
 POLITICS_CHANNEL = int(os.getenv('POLITICS_CHANNEL'))
 GURU = int(os.getenv('GURU'))
 COMMAND_DEL_CHANNEL = int(os.getenv('COMMAND_DEL_CHANNEL'))
+LOG_CHANNEL = int(os.getenv('LOG_CHANNEL'))
 client = commands.Bot(command_prefix = prefix, intents=intents)
 currentguild = 'rpi'
 id = str(random.randint(0,999999999)).zfill(9)
@@ -79,6 +80,7 @@ async def on_message(message):
     except Exception as e:
         print(e)
         print(f"command in message {str(message.content)} failed.")
+
     try:
         if message.channel.id == COMMAND_DEL_CHANNEL and not message.author.bot:
             await message.delete()
@@ -290,6 +292,8 @@ async def unverify(ctx):
     f"""
     Unverifies the user. To access verified channels again, type {prefix}verify.
     """
+
+    logchannel = client.get_channel(LOG_CHANNEL)
     
     roleids = [870233517156597800, 871156035845509121, 871152677835386900, 871172200881848361]
     roleadd = [870555161007902781]
@@ -302,6 +306,7 @@ async def unverify(ctx):
     for role in roles_to_add:
         await user.add_roles(role)
     await ctx.send(f"I have removed your verified roles. Type {prefix}verify to add them again.")
+    await logchannel.send(f'{ctx.message.author} ({ctx.message.author.id}) unverified themself.')
 
 
 @client.command(name='verify')
@@ -313,6 +318,7 @@ async def verify(ctx):
     ## Checks that the user is not already verified in the operating server:
 
     guild = client.get_guild(GUILD_ID)
+    logchannel = client.get_channel(LOG_CHANNEL)
     roleids = [870233517156597800, 871156035845509121, 871152677835386900, 871172200881848361]
     rolerem = [870555161007902781,1124826215337955328]
     verified = discord.utils.find(lambda r: r.id == 870233517156597800, guild.roles)
@@ -334,7 +340,8 @@ async def verify(ctx):
     ## Sends an instructional DM to the user:
 
     mymessage = await channel.send('Send your Columbia or Barnard email to verify your identity. You will recieve an email to your school inbox with a six-digit verificaion code.')
-    
+    await logchannel.send("verification attempt by " + str(ctx.message.author) + " (" + str(ctx.message.author.id) + ") in channel " + str(ctx.message.channel) + " (" + str(ctx.message.channel.id) + ")")
+
     if channel != ctx.message.channel:
         sentmessage = await ctx.message.channel.send("DM Sent.")
         await asyncio.sleep(5)
@@ -344,6 +351,7 @@ async def verify(ctx):
 
     ## Waits for user to send their rcs id or email. Checks that the next message is not from the bot:
     print("awaiting rcs_msg")
+    await logchannel.send("awaiting rcs_msg from " + str(ctx.message.author) + " (" + str(ctx.message.author.id) + ")")
     rcs_msg = await client.wait_for('message', check = lambda message: \
         (message.channel == channel) and (message.author.id == ctx.author.id))
     if rcs_msg.author == mymessage.author:
@@ -351,6 +359,7 @@ async def verify(ctx):
         return
     print("rcs_msg found")
     email_msg = str(rcs_msg.content).strip()
+    await logchannel.send("rcs_msg = " + email_msg + " from " + str(ctx.message.author) + " (" + str(ctx.message.author.id) + ")")
     
     ## Processes the message and determines whether it is a valid ID/email: 
     emails = ["@columbia.edu", 
@@ -367,14 +376,17 @@ async def verify(ctx):
     elif '@' in email_msg:
         print('invalid email address ' + str(user))
         await channel.send(str(rcs_msg.content) + ' is an invalid e-mail address. You must use an email address ending in ```' + '\n'.join(emails) + '``` If you think your email should be valid, please contact staff. Type ' + prefix + 'verify to try again.')
+        await logchannel.send("invalid email address from " + str(ctx.message.author) + " (" + str(ctx.message.author.id) + "): " + str(rcs_msg.content))
         return
     elif email_msg[0] == prefix:
         print(str(user) + ' quit verification')
         await channel.send('Verification cancelled.')
+        await logchannel.send("verification cancelled by " + str(ctx.message.author) + " (" + str(ctx.message.author.id) + ")")
         return
     else:
         print(str(user) + ' inputted invalid id')
         await channel.send(f'An error ocurred. Please type {prefix}verify to try again.')
+        await logchannel.send("invalid rcs id from " + str(ctx.message.author) + " (" + str(ctx.message.author.id) + "): " + str(rcs_msg.content))
         return
 
     verifchannel = client.get_channel(VERIF_CHANNEL)
@@ -384,7 +396,7 @@ async def verify(ctx):
         for ban in bans:
             if email in ban:
                 await channel.send("You have been banned from the server. If you think this is a mistake, please contact staff.")
-                verifchannel.send(f'{ctx.message.author} attempted to verify but their email {email} is banned.')
+                await logchannel.send(f'{ctx.message.author} attempted to verify but their email {email} is banned.')
                 return
 
     ## Searches the directory and checks whether the given RCS id is a student:
@@ -405,12 +417,13 @@ async def verify(ctx):
     #     await channel.send(name + ' is not a student. Your role is ' + role + '.')
     #     return
 
-    await channel.send("Sending verification email to " + email + ".\n\nPlease type in the recieved six-digit verification code. If you do not recieve an email, please check your spam filter before contacting staff.")
-    
+    await channel.send("Sending verification email to " + email + "...")
+    await logchannel.send("sending verification email to " + email + " for " + str(ctx.message.author) + " (" + str(ctx.message.author.id) + ")")
     ## Generates a code and email content:
 
     code = str(random.randint(0,999999)).zfill(6)
     print('code:', code)
+    await logchannel.send("verification code generated for " + str(ctx.message.author) + " (" + str(ctx.message.author.id) + "): " + code)
     text_subtype = 'plain'
     content = "Dear community member,\n\nYour verification code is %s. \n\nIf you did not request a code, please disregard this email.\n\nSincerely,\n\nthe mod team." % code
     
@@ -436,6 +449,9 @@ async def verify(ctx):
 
         try:
             server.sendmail(sender,destination,msg.as_string())
+        except:
+            print('email failed to send to ' + str(user))
+            await logchannel.send("ERROR: email failed to send to " + str(user) + " (" + str(user.id) + ")")
         
         finally:
             server.close()
@@ -445,21 +461,27 @@ async def verify(ctx):
     except Exception as e1:
         print(e1)
         print('email not sent to ' + str(user))
+        await logchannel.send("ERROR: email failed to send to " + str(user) + " (" + str(user.id) + "): " + str(e1))
         # return
 
+    await channel.send("Verification email sent successfully. Please enter the six-digit code you received to complete verification. If you do not receive an email, please check your spam filter.")
+    await logchannel.send("awaiting verification code from " + str(ctx.message.author) + " (" + str(ctx.message.author.id) + ")")
     print('waiting...')
 
     ## Waits for verification code and checks that the code is correct:
     code_msg = await client.wait_for('message', check = lambda message: \
         (message.channel == channel) and (message.author.id == ctx.author.id))
+    await logchannel.send("code received from " + str(ctx.message.author) + " (" + str(ctx.message.author.id) + "): " + str(code_msg.content))
     print("code recieved")
     if code_msg.author == mymessage.author:
         print(str(user) + ": UNKNOWN ERROR. ABORT")
+        await logchannel.send("ERROR: UNKNOWN ERROR. ABORT for " + str(user) + " (" + str(user.id) + ")")
         return
     code_msg = str(code_msg.content).strip()
     if code_msg != code:
         print("invalid code")
         await channel.send("Incorrect code. Type " + prefix + "verify to try again.")
+        await logchannel.send("invalid code from " + str(ctx.message.author) + " (" + str(ctx.message.author.id) + "): " + str(code_msg))
         return
     ## Verifies the user:
     else:
@@ -472,7 +494,7 @@ async def verify(ctx):
             print(role)
             await user.remove_roles(role)
         await channel.send("Thank you for verifying your student status. Your identity will never be shared with the University or the public. You now have access to the server.")
-
+        await logchannel.send(str(user) + " (" + str(user.id) + ") verified as " + email)
         await verifchannel.send(str(email) + " = <@" + str(user.id) + "> (" + str(user.id) + ")")
         print(f'user {str(user)} verified as {email}.')
     
