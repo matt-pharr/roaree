@@ -148,17 +148,51 @@ class BotDB:
         ).fetchone()
         return row[0]
 
-    def monthly_verification_counts(self):
+    def monthly_verification_counts(self, since=None):
         """Return list of (year, month, count) tuples for verifications per month."""
-        rows = self._conn.execute(
-            "SELECT CAST(strftime('%Y', verified_at) AS INTEGER),"
-            "       CAST(strftime('%m', verified_at) AS INTEGER),"
-            "       COUNT(*)"
-            "  FROM verifications"
-            " GROUP BY strftime('%Y-%m', verified_at)"
-            " ORDER BY strftime('%Y-%m', verified_at)"
-        ).fetchall()
+        if since:
+            rows = self._conn.execute(
+                "SELECT CAST(strftime('%Y', verified_at) AS INTEGER),"
+                "       CAST(strftime('%m', verified_at) AS INTEGER),"
+                "       COUNT(*)"
+                "  FROM verifications"
+                " WHERE verified_at >= ?"
+                " GROUP BY strftime('%Y-%m', verified_at)"
+                " ORDER BY strftime('%Y-%m', verified_at)",
+                (since,),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT CAST(strftime('%Y', verified_at) AS INTEGER),"
+                "       CAST(strftime('%m', verified_at) AS INTEGER),"
+                "       COUNT(*)"
+                "  FROM verifications"
+                " GROUP BY strftime('%Y-%m', verified_at)"
+                " ORDER BY strftime('%Y-%m', verified_at)"
+            ).fetchall()
         return [(row[0], row[1], row[2]) for row in rows]
+
+    def weekly_verification_counts(self, since=None):
+        """Return list of (iso_date_string, count) tuples grouped by ISO week start (Monday)."""
+        if since:
+            rows = self._conn.execute(
+                "SELECT date(verified_at, 'weekday 0', '-6 days') AS week_start,"
+                "       COUNT(*)"
+                "  FROM verifications"
+                " WHERE verified_at >= ?"
+                " GROUP BY week_start"
+                " ORDER BY week_start",
+                (since,),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT date(verified_at, 'weekday 0', '-6 days') AS week_start,"
+                "       COUNT(*)"
+                "  FROM verifications"
+                " GROUP BY week_start"
+                " ORDER BY week_start"
+            ).fetchall()
+        return [(row[0], row[1]) for row in rows]
 
     def import_verif_messages(self, messages):
         """Import parsed verification messages. Returns count of new records.

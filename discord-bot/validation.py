@@ -1,3 +1,4 @@
+import datetime
 import re
 
 VALID_EMAIL_DOMAINS = [
@@ -53,3 +54,57 @@ def classify_email_input(email_input, prefix='?'):
         return ("cancelled", None)
     else:
         return ("error", None)
+
+
+# --- Time range parsing ---
+
+_TIME_RANGE_RE = re.compile(
+    r'^\s*(\d+)\s*([ymw]|years?|months?|weeks?)?\s*$',
+    re.IGNORECASE,
+)
+
+_UNIT_MAP = {
+    'y': 'years', 'year': 'years', 'years': 'years',
+    'm': 'months', 'month': 'months', 'months': 'months',
+    'w': 'weeks', 'week': 'weeks', 'weeks': 'weeks',
+}
+
+
+def parse_time_range(text):
+    """Parse a time range string into (timedelta, unit_name) or None for all time.
+
+    Accepts formats like: "5" (5 months), "5m", "5 months", "1y", "1 year", "1w", etc.
+    Bare number defaults to months.
+
+    Returns:
+        (datetime.timedelta, unit_name) where unit_name is 'years', 'months', or 'weeks'.
+        None if text is empty/None (meaning all time).
+
+    Raises:
+        ValueError if the text can't be parsed.
+    """
+    if not text or not text.strip():
+        return None
+
+    m = _TIME_RANGE_RE.match(text)
+    if not m:
+        raise ValueError(f"Could not parse time range: {text!r}. Use e.g. 5, 5m, 1y, 2w.")
+
+    amount = int(m.group(1))
+    raw_unit = m.group(2)
+
+    if raw_unit is None:
+        unit = 'months'
+    else:
+        unit = _UNIT_MAP.get(raw_unit.lower())
+        if unit is None:
+            raise ValueError(f"Unknown time unit: {raw_unit!r}. Use y/m/w.")
+
+    if unit == 'years':
+        delta = datetime.timedelta(days=amount * 365)
+    elif unit == 'months':
+        delta = datetime.timedelta(days=amount * 30)
+    elif unit == 'weeks':
+        delta = datetime.timedelta(weeks=amount)
+
+    return (delta, unit)

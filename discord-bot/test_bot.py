@@ -6,7 +6,7 @@ import pytest
 
 from bans_db import BotDB, parse_verif_message
 from charts import generate_verification_chart
-from validation import extract_email_domain, is_valid_email, classify_email_input
+from validation import extract_email_domain, is_valid_email, classify_email_input, parse_time_range
 
 
 # --- Fixtures ---
@@ -160,6 +160,43 @@ class TestVerifications:
     def test_monthly_verification_counts_empty(self, db):
         assert db.monthly_verification_counts() == []
 
+    def test_monthly_verification_counts_with_since(self, db):
+        messages = [
+            ("a@columbia.edu = <@1> (1)", "2023-06-15 10:00:00"),
+            ("b@columbia.edu = <@2> (2)", "2024-01-20 12:00:00"),
+            ("c@columbia.edu = <@3> (3)", "2024-03-05 08:00:00"),
+        ]
+        db.import_verif_messages(messages)
+        counts = db.monthly_verification_counts(since="2024-01-01 00:00:00")
+        assert len(counts) == 2
+        assert counts[0] == (2024, 1, 1)
+        assert counts[1] == (2024, 3, 1)
+
+    def test_weekly_verification_counts(self, db):
+        messages = [
+            ("a@columbia.edu = <@1> (1)", "2024-01-15 10:00:00"),  # Mon
+            ("b@columbia.edu = <@2> (2)", "2024-01-16 12:00:00"),  # Tue same week
+            ("c@columbia.edu = <@3> (3)", "2024-01-22 08:00:00"),  # next Mon
+        ]
+        db.import_verif_messages(messages)
+        counts = db.weekly_verification_counts()
+        assert len(counts) == 2
+        assert counts[0][1] == 2  # first week: 2
+        assert counts[1][1] == 1  # second week: 1
+
+    def test_weekly_verification_counts_with_since(self, db):
+        messages = [
+            ("a@columbia.edu = <@1> (1)", "2023-06-15 10:00:00"),
+            ("b@columbia.edu = <@2> (2)", "2024-01-15 12:00:00"),
+        ]
+        db.import_verif_messages(messages)
+        counts = db.weekly_verification_counts(since="2024-01-01 00:00:00")
+        assert len(counts) == 1
+        assert counts[0][1] == 1
+
+    def test_weekly_verification_counts_empty(self, db):
+        assert db.weekly_verification_counts() == []
+
 
 # --- Chart generation tests ---
 
@@ -183,6 +220,17 @@ class TestGenerateVerificationChart:
     def test_multi_year(self):
         data = [(2022, 9, 5), (2023, 1, 10), (2024, 6, 3)]
         buf = generate_verification_chart(data)
+        assert buf is not None
+        assert buf.read(4) == b'\x89PNG'
+
+    def test_weekly_granularity(self):
+        data = [("2024-01-01", 3), ("2024-01-08", 5), ("2024-01-15", 2)]
+        buf = generate_verification_chart(data, granularity='weekly')
+        assert buf is not None
+        assert buf.read(4) == b'\x89PNG'
+
+    def test_weekly_single_week(self):
+        buf = generate_verification_chart([("2024-06-03", 7)], granularity='weekly')
         assert buf is not None
         assert buf.read(4) == b'\x89PNG'
 
@@ -335,3 +383,87 @@ class TestClassifyEmailInput:
     def test_empty_string(self):
         status, detail = classify_email_input("")
         assert status == "error"
+
+
+class TestParseTimeRange:
+    def test_none_returns_none(self):
+        assert parse_time_range(None) is None
+
+    def test_empty_returns_none(self):
+        assert parse_time_range("") is None
+        assert parse_time_range("   ") is None
+
+    def test_bare_number_defaults_to_months(self):
+        delta, unit = parse_time_range("5")
+        assert unit == "months"
+        assert delta.days == 150
+
+    def test_months_short(self):
+        delta, unit = parse_time_range("3m")
+        assert unit == "months"
+        assert delta.days == 90
+
+    def test_months_with_space(self):
+        delta, unit = parse_time_range("3 m")
+        assert unit == "months"
+
+    def test_months_with_extra_spaces(self):
+        delta, unit = parse_time_range("  3   m  ")
+        assert unit == "months"
+
+    def test_months_long(self):
+        delta, unit = parse_time_range("2 months")
+        assert unit == "months"
+        assert delta.days == 60
+
+    def test_month_singular(self):
+        delta, unit = parse_time_range("1 month")
+        assert unit == "months"
+
+    def test_years_short(self):
+        delta, unit = parse_time_range("1y")
+        assert unit == "years"
+        assert delta.days == 365
+
+    def test_years_with_space(self):
+        delta, unit = parse_time_range("2 y")
+        assert unit == "years"
+        assert delta.days == 730
+
+    def test_years_long(self):
+        delta, unit = parse_time_range("1 year")
+        assert unit == "years"
+
+    def test_years_plural(self):
+        delta, unit = parse_time_range("3 years")
+        assert unit == "years"
+
+    def test_weeks_short(self):
+        delta, unit = parse_time_range("2w")
+        assert unit == "weeks"
+        assert delta.days == 14
+
+    def test_weeks_with_space(self):
+        delta, unit = parse_time_range("1 w")
+        assert unit == "weeks"
+        assert delta.days == 7
+
+    def test_weeks_long(self):
+        delta, unit = parse_time_range("4 weeks")
+        assert unit == "weeks"
+
+    def test_case_insensitive(self):
+        delta, unit = parse_time_range("2Y")
+        assert unit == "years"
+        delta, unit = parse_time_range("3M")
+        assert unit == "months"
+        delta, unit = parse_time_range("1W")
+        assert unit == "weeks"
+
+    def test_invalid_raises(self):
+        with pytest.raises(ValueError):
+            parse_time_range("abc")
+        with pytest.raises(ValueError):
+            parse_time_range("5d")
+        with pytest.raises(ValueError):
+            parse_time_range("five months")

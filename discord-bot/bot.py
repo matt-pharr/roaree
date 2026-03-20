@@ -14,7 +14,7 @@ from pathlib import Path
 
 from bans_db import BotDB
 from charts import generate_verification_chart
-from validation import classify_email_input, VALID_EMAIL_DOMAINS
+from validation import classify_email_input, parse_time_range, VALID_EMAIL_DOMAINS
 
 # --- Logging setup ---
 
@@ -235,12 +235,42 @@ async def verified(ctx, member: discord.Member):
 
 @client.command(name='stats')
 @privileged()
-async def stats(ctx):
-    """Show verification and ban statistics with a chart."""
+async def stats(ctx, *, time_range: str = None):
+    """Show verification and ban statistics with a chart.
+
+    Optional time range: ?stats 5 (last 5 months), ?stats 2y, ?stats 3w, etc.
+    Omit for all time.
+    """
+    # Parse time range
+    try:
+        parsed = parse_time_range(time_range)
+    except ValueError as e:
+        await ctx.send(str(e))
+        return
+
+    now = datetime.datetime.utcnow()
+
+    if parsed:
+        delta, unit = parsed
+        since_dt = now - delta
+        since_str = since_dt.strftime("%Y-%m-%d %H:%M:%S")
+        # Use weekly granularity for months/weeks, monthly for years/all-time
+        if unit in ('months', 'weeks'):
+            chart_data = db.weekly_verification_counts(since=since_str)
+            granularity = 'weekly'
+        else:
+            chart_data = db.monthly_verification_counts(since=since_str)
+            granularity = 'monthly'
+        range_label = time_range.strip()
+    else:
+        since_str = None
+        chart_data = db.monthly_verification_counts()
+        granularity = 'monthly'
+        range_label = "all time"
+
     total_verified = db.verification_count()
     total_bans = len(db.list_all())
 
-    now = datetime.datetime.utcnow()
     today = now.strftime("%Y-%m-%d 00:00:00")
     week_ago = (now - datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
     month_ago = (now - datetime.timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
@@ -249,7 +279,7 @@ async def stats(ctx):
     verified_week = db.verifications_since(week_ago)
     verified_month = db.verifications_since(month_ago)
 
-    embed = discord.Embed(title="Verification Stats", color=discord.Color.blurple())
+    embed = discord.Embed(title=f"Verification Stats ({range_label})", color=discord.Color.blurple())
     embed.add_field(name="Total verified users", value=str(total_verified), inline=True)
     embed.add_field(name="Total bans", value=str(total_bans), inline=True)
     embed.add_field(name="\u200b", value="\u200b", inline=True)
@@ -257,8 +287,7 @@ async def stats(ctx):
     embed.add_field(name="Verified (7 days)", value=str(verified_week), inline=True)
     embed.add_field(name="Verified (30 days)", value=str(verified_month), inline=True)
 
-    monthly_counts = db.monthly_verification_counts()
-    chart_buf = generate_verification_chart(monthly_counts)
+    chart_buf = generate_verification_chart(chart_data, granularity=granularity)
 
     if chart_buf:
         chart_file = discord.File(chart_buf, filename="verifications.png")
