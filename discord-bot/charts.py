@@ -8,7 +8,10 @@ import matplotlib.dates as mdates
 
 
 def generate_verification_chart(monthly_counts):
-    """Generate a cumulative verification step chart and return it as a PNG bytes buffer.
+    """Generate a two-panel verification chart and return it as a PNG bytes buffer.
+
+    Top panel: cumulative verified users (step).
+    Bottom panel: new verifications per month (bar).
 
     Args:
         monthly_counts: list of (year, month, count) tuples from BotDB.monthly_verification_counts()
@@ -20,27 +23,36 @@ def generate_verification_chart(monthly_counts):
         return None
 
     dates = []
-    counts = []
+    per_month = []
+    cumulative_counts = []
     cumulative = 0
     for year, month, count in monthly_counts:
         dates.append(datetime.date(year, month, 1))
+        per_month.append(count)
         cumulative += count
-        counts.append(cumulative)
+        cumulative_counts.append(cumulative)
 
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.step(dates, counts, where='post', linewidth=1.5, color='#5865F2')
-    ax.fill_between(dates, counts, step='post', alpha=0.15, color='#5865F2')
+    fig, (ax_cum, ax_month) = plt.subplots(2, 1, figsize=(7, 5), sharex=True)
 
-    # Major ticks: years. Minor ticks: months.
-    ax.xaxis.set_major_locator(mdates.YearLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
-    ax.xaxis.set_minor_locator(mdates.MonthLocator())
+    # Top: cumulative step chart
+    ax_cum.step(dates, cumulative_counts, where='post', linewidth=1.5, color='#5865F2')
+    ax_cum.fill_between(dates, cumulative_counts, step='post', alpha=0.15, color='#5865F2')
+    ax_cum.set_ylabel('Total verified')
+    ax_cum.set_title('Verification Stats')
+    ax_cum.grid(axis='y', alpha=0.3)
 
-    ax.tick_params(axis='x', which='major', labelsize=10)
-    ax.tick_params(axis='x', which='minor', length=3, labelsize=0)
-    ax.set_ylabel('Total verified users')
-    ax.set_title('Cumulative Verifications Over Time')
-    ax.grid(axis='y', alpha=0.3)
+    # Bottom: per-month bar chart
+    bar_width = 25  # days, slightly less than a month
+    ax_month.bar(dates, per_month, width=bar_width, color='#5865F2', alpha=0.7)
+    ax_month.set_ylabel('New per month')
+    ax_month.grid(axis='y', alpha=0.3)
+
+    # Shared x-axis: major = years, minor = months
+    ax_month.xaxis.set_major_locator(mdates.YearLocator())
+    ax_month.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+    ax_month.xaxis.set_minor_locator(mdates.MonthLocator())
+    ax_month.tick_params(axis='x', which='minor', length=3, labelsize=0)
+
     fig.tight_layout()
 
     buf = io.BytesIO()
