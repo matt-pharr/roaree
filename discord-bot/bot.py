@@ -12,7 +12,7 @@ from email.mime.text import MIMEText
 from email.utils import formatdate
 from pathlib import Path
 
-from db import BotDB
+from bans_db import BotDB
 from validation import classify_email_input, VALID_EMAIL_DOMAINS
 
 # --- Logging setup ---
