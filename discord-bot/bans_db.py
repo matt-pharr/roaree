@@ -148,6 +148,18 @@ class BotDB:
         ).fetchone()
         return row[0]
 
+    def monthly_verification_counts(self):
+        """Return list of (year, month, count) tuples for verifications per month."""
+        rows = self._conn.execute(
+            "SELECT CAST(strftime('%Y', verified_at) AS INTEGER),"
+            "       CAST(strftime('%m', verified_at) AS INTEGER),"
+            "       COUNT(*)"
+            "  FROM verifications"
+            " GROUP BY strftime('%Y-%m', verified_at)"
+            " ORDER BY strftime('%Y-%m', verified_at)"
+        ).fetchall()
+        return [(row[0], row[1], row[2]) for row in rows]
+
     def import_verif_messages(self, messages):
         """Import parsed verification messages. Returns count of new records.
 

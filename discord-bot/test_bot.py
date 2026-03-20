@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from bans_db import BotDB, parse_verif_message
+from charts import generate_verification_chart
 from validation import extract_email_domain, is_valid_email, classify_email_input
 
 
@@ -143,6 +144,47 @@ class TestVerifications:
         assert db.verifications_since("2000-01-01 00:00:00") == 1
         # Counting since far future should get none
         assert db.verifications_since("2099-01-01 00:00:00") == 0
+
+    def test_monthly_verification_counts(self, db):
+        messages = [
+            ("a@columbia.edu = <@1> (1)", "2024-01-15 10:00:00"),
+            ("b@columbia.edu = <@2> (2)", "2024-01-20 12:00:00"),
+            ("c@columbia.edu = <@3> (3)", "2024-03-05 08:00:00"),
+        ]
+        db.import_verif_messages(messages)
+        counts = db.monthly_verification_counts()
+        assert len(counts) == 2
+        assert counts[0] == (2024, 1, 2)  # Jan: 2 verifications
+        assert counts[1] == (2024, 3, 1)  # Mar: 1 verification
+
+    def test_monthly_verification_counts_empty(self, db):
+        assert db.monthly_verification_counts() == []
+
+
+# --- Chart generation tests ---
+
+class TestGenerateVerificationChart:
+    def test_returns_none_for_empty(self):
+        assert generate_verification_chart([]) is None
+
+    def test_returns_png_bytes(self):
+        data = [(2024, 1, 5), (2024, 2, 3), (2024, 3, 7)]
+        buf = generate_verification_chart(data)
+        assert buf is not None
+        header = buf.read(8)
+        # PNG magic bytes
+        assert header[:4] == b'\x89PNG'
+
+    def test_single_month(self):
+        buf = generate_verification_chart([(2024, 6, 10)])
+        assert buf is not None
+        assert buf.read(4) == b'\x89PNG'
+
+    def test_multi_year(self):
+        data = [(2022, 9, 5), (2023, 1, 10), (2024, 6, 3)]
+        buf = generate_verification_chart(data)
+        assert buf is not None
+        assert buf.read(4) == b'\x89PNG'
 
 
 # --- parse_verif_message tests ---

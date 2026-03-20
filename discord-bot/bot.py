@@ -13,6 +13,7 @@ from email.utils import formatdate
 from pathlib import Path
 
 from bans_db import BotDB
+from charts import generate_verification_chart
 from validation import classify_email_input, VALID_EMAIL_DOMAINS
 
 # --- Logging setup ---
@@ -235,7 +236,7 @@ async def verified(ctx, member: discord.Member):
 @client.command(name='stats')
 @privileged()
 async def stats(ctx):
-    """Show verification and ban statistics."""
+    """Show verification and ban statistics with a chart."""
     total_verified = db.verification_count()
     total_bans = len(db.list_all())
 
@@ -251,11 +252,20 @@ async def stats(ctx):
     embed = discord.Embed(title="Verification Stats", color=discord.Color.blurple())
     embed.add_field(name="Total verified users", value=str(total_verified), inline=True)
     embed.add_field(name="Total bans", value=str(total_bans), inline=True)
-    embed.add_field(name="\u200b", value="\u200b", inline=True)  # spacer
+    embed.add_field(name="\u200b", value="\u200b", inline=True)
     embed.add_field(name="Verified today", value=str(verified_today), inline=True)
     embed.add_field(name="Verified (7 days)", value=str(verified_week), inline=True)
     embed.add_field(name="Verified (30 days)", value=str(verified_month), inline=True)
-    await ctx.send(embed=embed)
+
+    monthly_counts = db.monthly_verification_counts()
+    chart_buf = generate_verification_chart(monthly_counts)
+
+    if chart_buf:
+        chart_file = discord.File(chart_buf, filename="verifications.png")
+        embed.set_image(url="attachment://verifications.png")
+        await ctx.send(embed=embed, file=chart_file)
+    else:
+        await ctx.send(embed=embed)
 
 
 @client.command(name='reverify')
