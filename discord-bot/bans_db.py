@@ -1,11 +1,28 @@
+import re
 import sqlite3
 from pathlib import Path
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "bans.db"
 
+# Matches: "email = <@discord_id> (discord_id)"
+VERIF_MSG_PATTERN = re.compile(
+    r'^(.+?@[\w.-]+)\s*=\s*<@(\d+)>\s*\((\d+)\)$'
+)
 
-class BansDB:
-    """SQLite-backed email ban storage with exact-match lookups."""
+
+def parse_verif_message(text):
+    """Parse a verification channel message.
+
+    Returns (email, discord_id) or None if the message doesn't match.
+    """
+    m = VERIF_MSG_PATTERN.match(text.strip())
+    if m:
+        return (m.group(1).strip().lower(), int(m.group(2)))
+    return None
+
+
+class BotDB:
+    """SQLite-backed storage for bans and verifications."""
 
     def __init__(self, db_path=None):
         self.db_path = str(db_path or DEFAULT_DB_PATH)
@@ -16,6 +33,18 @@ class BansDB:
             "  banned_by TEXT,"
             "  banned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             ")"
+        )
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS verifications ("
+            "  email TEXT NOT NULL COLLATE NOCASE,"
+            "  discord_id INTEGER NOT NULL,"
+            "  verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+            "  PRIMARY KEY (email, discord_id)"
+            ")"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_verif_discord_id "
+            "ON verifications (discord_id)"
         )
         self._conn.commit()
 
@@ -69,3 +98,87 @@ class BansDB:
                 if email and self.add(email, banned_by="migrated_from_txt"):
                     count += 1
         return count
+
+    # --- Verification methods ---
+
+    def add_verification(self, email, discord_id):
+        """Record a verification. Returns True if new, False if duplicate."""
+        email = email.strip().lower()
+        try:
+            self._conn.execute(
+                "INSERT INTO verifications (email, discord_id) VALUES (?, ?)",
+                (email, int(discord_id)),
+            )
+            self._conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def lookup_by_discord_id(self, discord_id):
+        """Return list of emails associated with a Discord user ID."""
+        rows = self._conn.execute(
+            "SELECT email, verified_at FROM verifications "
+            "WHERE discord_id = ? ORDER BY verified_at",
+            (int(discord_id),),
+        ).fetchall()
+        return [(row[0], row[1]) for row in rows]
+
+    def lookup_by_email(self, email):
+        """Return list of (discord_id, verified_at) for an email."""
+        email = email.strip().lower()
+        rows = self._conn.execute(
+            "SELECT discord_id, verified_at FROM verifications "
+            "WHERE email = ? ORDER BY verified_at",
+            (email,),
+        ).fetchall()
+        return [(row[0], row[1]) for row in rows]
+
+    def verification_count(self):
+        """Return total number of unique verified users."""
+        row = self._conn.execute(
+            "SELECT COUNT(DISTINCT discord_id) FROM verifications"
+        ).fetchone()
+        return row[0]
+
+    def verifications_since(self, since_timestamp):
+        """Return count of verifications since a given ISO timestamp."""
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM verifications WHERE verified_at >= ?",
+            (since_timestamp,),
+        ).fetchone()
+        return row[0]
+
+    def import_verif_messages(self, messages):
+        """Import parsed verification messages. Returns count of new records.
+
+        Args:
+            messages: iterable of (text, timestamp) tuples where text is the
+                      raw message content and timestamp is an ISO string or None.
+        """
+        count = 0
+        for text, timestamp in messages:
+            parsed = parse_verif_message(text)
+            if not parsed:
+                continue
+            email, discord_id = parsed
+            try:
+                if timestamp:
+                    self._conn.execute(
+                        "INSERT INTO verifications (email, discord_id, verified_at) "
+                        "VALUES (?, ?, ?)",
+                        (email, discord_id, timestamp),
+                    )
+                else:
+                    self._conn.execute(
+                        "INSERT INTO verifications (email, discord_id) VALUES (?, ?)",
+                        (email, discord_id),
+                    )
+                count += 1
+            except sqlite3.IntegrityError:
+                pass
+        self._conn.commit()
+        return count
+
+
+# Backwards-compatible alias
+BansDB = BotDB

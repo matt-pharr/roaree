@@ -12,7 +12,7 @@ from email.mime.text import MIMEText
 from email.utils import formatdate
 from pathlib import Path
 
-from bans_db import BansDB
+from db import BotDB
 from validation import classify_email_input, VALID_EMAIL_DOMAINS
 
 # --- Logging setup ---
@@ -52,12 +52,12 @@ client = commands.Bot(command_prefix=prefix, intents=intents)
 # Timeout for user responses during verification (5 minutes)
 VERIFY_TIMEOUT = 300
 
-# --- Ban database ---
+# --- Database ---
 
-bans_db = BansDB()
+db = BotDB()
 
 # Migrate bans.txt to SQLite on first run (idempotent)
-_migrated = bans_db.import_from_text("bans.txt")
+_migrated = db.import_from_text("bans.txt")
 if _migrated:
     logger.info("Migrated %d bans from bans.txt to SQLite", _migrated)
 
@@ -141,7 +141,7 @@ async def on_command_error(ctx, error):
 @privileged()
 async def banemail(ctx, email):
     """Bans a user by email."""
-    if not bans_db.add(email, banned_by=str(ctx.author)):
+    if not db.add(email, banned_by=str(ctx.author)):
         await ctx.send(f'{email} is already banned.')
         return
 
@@ -156,7 +156,7 @@ async def banemail(ctx, email):
 @privileged()
 async def unbanemail(ctx, email):
     """Unbans a user by email."""
-    if bans_db.remove(email):
+    if db.remove(email):
         msg = f'{email} unbanned by {ctx.author}'
         verifchannel = client.get_channel(VERIF_CHANNEL)
         await verifchannel.send(msg)
@@ -170,7 +170,7 @@ async def unbanemail(ctx, email):
 @privileged()
 async def bans(ctx):
     """Lists all banned emails."""
-    ban_list = bans_db.list_all()
+    ban_list = db.list_all()
     if not ban_list:
         await ctx.send("No banned emails.")
     else:
@@ -181,10 +181,127 @@ async def bans(ctx):
 @privileged()
 async def isbanned(ctx, email):
     """Checks if an email is banned."""
-    if bans_db.is_banned(email):
+    if db.is_banned(email):
         await ctx.send(f'{email} is banned.')
     else:
         await ctx.send(f'{email} is not banned.')
+
+
+# --- Verification lookup commands ---
+
+@client.command(name='whois')
+@privileged()
+async def whois(ctx, target: typing.Union[discord.Member, str]):
+    """Look up a user's verified email, or an email's Discord account."""
+    if isinstance(target, discord.Member):
+        records = db.lookup_by_discord_id(target.id)
+        if not records:
+            await ctx.send(f"{target} has no verification records.")
+        else:
+            lines = [f"**{target}** verification history:"]
+            for email, verified_at in records:
+                lines.append(f"  {email} (verified {verified_at})")
+            await ctx.send("\n".join(lines))
+    else:
+        # target is an email string
+        records = db.lookup_by_email(target)
+        if not records:
+            await ctx.send(f"No verification records for {target}.")
+        else:
+            lines = [f"**{target}** verified by:"]
+            for discord_id, verified_at in records:
+                lines.append(f"  <@{discord_id}> ({discord_id}) (verified {verified_at})")
+            await ctx.send("\n".join(lines))
+
+
+@client.command(name='verified')
+@privileged()
+async def verified(ctx, member: discord.Member):
+    """Check if a user has the verified role."""
+    guild = get_guild()
+    verified_role = discord.utils.find(lambda r: r.id == 870233517156597800, guild.roles)
+    user = guild.get_member(member.id)
+    if verified_role in user.roles:
+        records = db.lookup_by_discord_id(member.id)
+        if records:
+            email = records[-1][0]  # most recent
+            await ctx.send(f"{member} is verified as {email}.")
+        else:
+            await ctx.send(f"{member} has the verified role but no email on record.")
+    else:
+        await ctx.send(f"{member} is not verified.")
+
+
+@client.command(name='stats')
+@privileged()
+async def stats(ctx):
+    """Show verification and ban statistics."""
+    total_verified = db.verification_count()
+    total_bans = len(db.list_all())
+
+    now = datetime.datetime.utcnow()
+    today = now.strftime("%Y-%m-%d 00:00:00")
+    week_ago = (now - datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    month_ago = (now - datetime.timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+
+    verified_today = db.verifications_since(today)
+    verified_week = db.verifications_since(week_ago)
+    verified_month = db.verifications_since(month_ago)
+
+    embed = discord.Embed(title="Verification Stats", color=discord.Color.blurple())
+    embed.add_field(name="Total verified users", value=str(total_verified), inline=True)
+    embed.add_field(name="Total bans", value=str(total_bans), inline=True)
+    embed.add_field(name="\u200b", value="\u200b", inline=True)  # spacer
+    embed.add_field(name="Verified today", value=str(verified_today), inline=True)
+    embed.add_field(name="Verified (7 days)", value=str(verified_week), inline=True)
+    embed.add_field(name="Verified (30 days)", value=str(verified_month), inline=True)
+    await ctx.send(embed=embed)
+
+
+@client.command(name='reverify')
+@privileged()
+async def reverify(ctx, member: discord.Member):
+    """Force a user to re-verify by stripping their verified roles."""
+    guild = get_guild()
+    logchannel = client.get_channel(LOG_CHANNEL)
+
+    roleids = [870233517156597800, 871156035845509121, 871152677835386900, 871172200881848361]
+    roleadd = [870555161007902781]
+    roles_to_remove = [discord.utils.find(lambda r, rid=rid: r.id == rid, guild.roles) for rid in roleids]
+    roles_to_add = [discord.utils.find(lambda r, rid=rid: r.id == rid, guild.roles) for rid in roleadd]
+    user = guild.get_member(member.id)
+
+    for role in roles_to_remove:
+        if role:
+            await user.remove_roles(role)
+    for role in roles_to_add:
+        if role:
+            await user.add_roles(role)
+
+    await ctx.send(f"{member.mention} has been unverified and must re-verify.")
+    await log(logchannel, f"[REVERIFY] {user_tag(member)} was forced to re-verify by {user_tag(ctx.author)}")
+
+
+@client.command(name='crawl')
+@privileged()
+async def crawl(ctx):
+    """Crawl the verification channel and import historical verification records into the database."""
+    verifchannel = client.get_channel(VERIF_CHANNEL)
+    logchannel = client.get_channel(LOG_CHANNEL)
+
+    await ctx.send("Crawling verification channel history... this may take a moment.")
+
+    messages = []
+    async for message in verifchannel.history(limit=None, oldest_first=True):
+        timestamp = message.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        messages.append((message.content, timestamp))
+
+    count = db.import_verif_messages(messages)
+    total = db.verification_count()
+
+    result = f"Crawl complete. Imported {count} new verification record(s). Total unique verified users: {total}."
+    await ctx.send(result)
+    await log(logchannel, f"[CRAWL] {user_tag(ctx.author)} ran crawl: {count} new, {total} total")
 
 
 # --- Verification commands ---
@@ -281,7 +398,7 @@ async def verify(ctx):
         return
 
     # Check if email is banned
-    if bans_db.is_banned(email):
+    if db.is_banned(email):
         await channel.send("You have been banned from the server. If you think this is a mistake, please contact staff.")
         await log(logchannel, f"[VERIFY] {user_tag(ctx.author)} attempted with banned email: {email}")
         return
@@ -361,6 +478,20 @@ async def verify(ctx):
         "with the University or the public. You now have access to the server."
     )
     verifchannel = client.get_channel(VERIF_CHANNEL)
+
+    # Check if this email was previously used by a different account
+    prior_records = db.lookup_by_email(email)
+    other_accounts = [r for r in prior_records if r[0] != user.id]
+    if other_accounts:
+        other_list = ", ".join(f"<@{did}> ({did})" for did, _ in other_accounts)
+        await log(
+            logchannel,
+            f"[VERIFY] WARNING: {email} was previously used to verify different account(s): {other_list}. "
+            f"Now being used by {user_tag(ctx.author)}.",
+            level=logging.WARNING,
+        )
+
+    db.add_verification(email, user.id)
     await log(logchannel, f"[VERIFY] {user_tag(ctx.author)} verified as {email}")
     await verifchannel.send(f"{email} = <@{user.id}> ({user.id})")
 

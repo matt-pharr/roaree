@@ -4,21 +4,23 @@ from pathlib import Path
 
 import pytest
 
-from bans_db import BansDB
+from bans_db import BotDB, parse_verif_message
 from validation import extract_email_domain, is_valid_email, classify_email_input
 
 
-# --- BansDB tests ---
+# --- Fixtures ---
 
 @pytest.fixture
 def db(tmp_path):
-    """Create a temporary BansDB for each test."""
-    db = BansDB(db_path=tmp_path / "test_bans.db")
+    """Create a temporary BotDB for each test."""
+    db = BotDB(db_path=tmp_path / "test.db")
     yield db
     db.close()
 
 
-class TestBansDB:
+# --- BansDB tests ---
+
+class TestBans:
     def test_add_and_is_banned(self, db):
         assert not db.is_banned("test@columbia.edu")
         assert db.add("test@columbia.edu", banned_by="admin")
@@ -75,12 +77,143 @@ class TestBansDB:
         txt.write_text("alice@columbia.edu\n")
         db.import_from_text(txt)
         count = db.import_from_text(txt)
-        assert count == 0  # already imported
+        assert count == 0
 
     def test_whitespace_handling(self, db):
         db.add("  test@columbia.edu  ")
         assert db.is_banned("test@columbia.edu")
         assert db.is_banned("  test@columbia.edu  ")
+
+
+# --- Verification DB tests ---
+
+class TestVerifications:
+    def test_add_and_lookup_by_discord_id(self, db):
+        assert db.add_verification("user@columbia.edu", 12345)
+        records = db.lookup_by_discord_id(12345)
+        assert len(records) == 1
+        assert records[0][0] == "user@columbia.edu"
+        assert records[0][1] is not None  # has timestamp
+
+    def test_add_duplicate_returns_false(self, db):
+        assert db.add_verification("user@columbia.edu", 12345)
+        assert not db.add_verification("user@columbia.edu", 12345)
+
+    def test_same_email_different_users(self, db):
+        assert db.add_verification("user@columbia.edu", 111)
+        assert db.add_verification("user@columbia.edu", 222)
+        records = db.lookup_by_email("user@columbia.edu")
+        assert len(records) == 2
+
+    def test_same_user_different_emails(self, db):
+        assert db.add_verification("a@columbia.edu", 111)
+        assert db.add_verification("b@columbia.edu", 111)
+        records = db.lookup_by_discord_id(111)
+        assert len(records) == 2
+
+    def test_lookup_by_email(self, db):
+        db.add_verification("user@columbia.edu", 12345)
+        records = db.lookup_by_email("user@columbia.edu")
+        assert len(records) == 1
+        assert records[0][0] == 12345
+
+    def test_lookup_by_email_case_insensitive(self, db):
+        db.add_verification("User@Columbia.EDU", 12345)
+        records = db.lookup_by_email("user@columbia.edu")
+        assert len(records) == 1
+
+    def test_lookup_empty(self, db):
+        assert db.lookup_by_discord_id(99999) == []
+        assert db.lookup_by_email("nobody@columbia.edu") == []
+
+    def test_verification_count(self, db):
+        assert db.verification_count() == 0
+        db.add_verification("a@columbia.edu", 111)
+        db.add_verification("b@columbia.edu", 222)
+        assert db.verification_count() == 2
+
+    def test_verification_count_deduplicates_users(self, db):
+        db.add_verification("a@columbia.edu", 111)
+        db.add_verification("b@columbia.edu", 111)
+        assert db.verification_count() == 1
+
+    def test_verifications_since(self, db):
+        db.add_verification("a@columbia.edu", 111)
+        # All verifications are "now", so counting since epoch should get them all
+        assert db.verifications_since("2000-01-01 00:00:00") == 1
+        # Counting since far future should get none
+        assert db.verifications_since("2099-01-01 00:00:00") == 0
+
+
+# --- parse_verif_message tests ---
+
+class TestParseVerifMessage:
+    def test_standard_format(self):
+        result = parse_verif_message("mcp2198@columbia.edu = <@140951260323905537> (140951260323905537)")
+        assert result == ("mcp2198@columbia.edu", 140951260323905537)
+
+    def test_subdomain_email(self):
+        result = parse_verif_message("user@tc.columbia.edu = <@12345> (12345)")
+        assert result == ("user@tc.columbia.edu", 12345)
+
+    def test_extra_whitespace(self):
+        result = parse_verif_message("  user@columbia.edu  =  <@12345>  (12345)  ")
+        assert result == ("user@columbia.edu", 12345)
+
+    def test_non_matching_message(self):
+        assert parse_verif_message("some random message") is None
+        assert parse_verif_message("user@columbia.edu banned by admin") is None
+
+    def test_empty_string(self):
+        assert parse_verif_message("") is None
+
+    def test_email_lowercased(self):
+        result = parse_verif_message("User@Columbia.EDU = <@12345> (12345)")
+        assert result[0] == "user@columbia.edu"
+
+
+class TestImportVerifMessages:
+    def test_import_messages(self, db):
+        messages = [
+            ("mcp2198@columbia.edu = <@140951260323905537> (140951260323905537)", "2024-01-15 10:30:00"),
+            ("yz4219@columbia.edu = <@987654321> (987654321)", "2024-02-20 14:00:00"),
+        ]
+        count = db.import_verif_messages(messages)
+        assert count == 2
+        assert db.verification_count() == 2
+
+    def test_import_skips_non_matching(self, db):
+        messages = [
+            ("mcp2198@columbia.edu = <@12345> (12345)", "2024-01-15 10:30:00"),
+            ("some random log message", "2024-01-15 10:31:00"),
+            ("email@columbia.edu banned by admin", "2024-01-15 10:32:00"),
+        ]
+        count = db.import_verif_messages(messages)
+        assert count == 1
+
+    def test_import_idempotent(self, db):
+        messages = [
+            ("user@columbia.edu = <@12345> (12345)", "2024-01-15 10:30:00"),
+        ]
+        assert db.import_verif_messages(messages) == 1
+        assert db.import_verif_messages(messages) == 0
+
+    def test_import_preserves_timestamp(self, db):
+        messages = [
+            ("user@columbia.edu = <@12345> (12345)", "2024-06-15 09:00:00"),
+        ]
+        db.import_verif_messages(messages)
+        records = db.lookup_by_discord_id(12345)
+        assert records[0][1] == "2024-06-15 09:00:00"
+
+    def test_import_no_timestamp(self, db):
+        messages = [
+            ("user@columbia.edu = <@12345> (12345)", None),
+        ]
+        count = db.import_verif_messages(messages)
+        assert count == 1
+        records = db.lookup_by_discord_id(12345)
+        assert records[0][1] is not None  # gets default CURRENT_TIMESTAMP
 
 
 # --- Validation tests ---
